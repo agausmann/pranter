@@ -2,6 +2,7 @@ use anyhow::Context;
 use serialport::SerialPort;
 use std::io::{self, stdin, BufRead, BufReader};
 use std::sync::mpsc;
+use std::time::Duration;
 
 enum Event {
     PrinterRx(std::io::Result<String>),
@@ -19,7 +20,12 @@ impl App {
     fn new() -> anyhow::Result<Self> {
         let (event_tx, event_rx) = mpsc::channel::<Event>();
         let printer = serialport::new("/dev/ttyACM0", 115200)
+            .timeout(Duration::from_secs(30))
             .open()
+            .context("open printer")?;
+
+        printer
+            .clear(serialport::ClearBuffer::All)
             .context("open printer")?;
 
         let printer_rx = printer.try_clone().context("open printer")?;
@@ -78,8 +84,9 @@ impl App {
     }
 
     fn handle_printer_rx(&mut self, line: &str) -> anyhow::Result<()> {
+        let line = line.trim();
         println!("{}", line);
-        if line.trim().starts_with("ok") {
+        if line.starts_with("ok") || line.starts_with("start") {
             self.send_line()?;
         }
         Ok(())
@@ -87,7 +94,6 @@ impl App {
 
     fn run(&mut self) -> anyhow::Result<()> {
         self.running = true;
-        self.send_line()?;
         loop {
             if !self.running {
                 break;
