@@ -30,7 +30,7 @@ impl App {
             for line_result in printer_rx.lines() {
                 printer_rx_event_tx
                     .send(Event::PrinterRx(line_result))
-                    .expect("event channel hangup");
+                    .expect("printer recv event");
             }
         });
 
@@ -92,7 +92,7 @@ impl App {
             if !self.running {
                 break;
             }
-            let event = self.event_rx.recv().context("event channel hangup")?;
+            let event = self.event_rx.recv().context("event recv")?;
             self.handle_event(event)?;
         }
         Ok(())
