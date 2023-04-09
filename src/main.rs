@@ -14,6 +14,7 @@ struct App {
     _printer_rx_thread: std::thread::JoinHandle<()>,
     input_lines: io::Lines<io::StdinLock<'static>>,
     running: bool,
+    printer_online: bool,
 }
 
 impl App {
@@ -46,6 +47,7 @@ impl App {
             _printer_rx_thread,
             input_lines: stdin().lines(),
             running: false,
+            printer_online: false,
         })
     }
 
@@ -86,7 +88,12 @@ impl App {
     fn handle_printer_rx(&mut self, line: &str) -> anyhow::Result<()> {
         let line = line.trim();
         println!("{}", line);
-        if line.starts_with("ok") || line.starts_with("start") {
+        if line.starts_with("start") {
+            if !self.printer_online {
+                self.printer_online = true;
+                self.send_line()?;
+            }
+        } else if line.starts_with("ok") {
             self.send_line()?;
         }
         Ok(())
