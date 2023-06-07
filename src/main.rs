@@ -88,7 +88,10 @@ impl App {
     fn handle_printer_rx(&mut self, line: &str) -> anyhow::Result<()> {
         let line = line.trim();
         println!("{}", line);
-        if line.starts_with("start") {
+        if line.contains("action:cancel") {
+            println!("USER CANCELLED");
+            self.running = false;
+        } else if line.starts_with("start") {
             if !self.printer_online {
                 self.printer_online = true;
                 self.send_line()?;
