@@ -15,6 +15,8 @@ struct App {
     input_lines: io::Lines<io::StdinLock<'static>>,
     running: bool,
     printer_online: bool,
+    pending_pause: bool,
+    paused: bool,
 }
 
 impl App {
@@ -48,10 +50,25 @@ impl App {
             input_lines: stdin().lines(),
             running: false,
             printer_online: false,
+            pending_pause: false,
+            paused: false,
         })
     }
 
+    fn send(&mut self, line: &str) -> anyhow::Result<()> {
+        eprintln!("{}", line);
+        write!(self.printer, "{}\r\n", line).context("printer send")?;
+        Ok(())
+    }
+
     fn send_line(&mut self) -> anyhow::Result<()> {
+        if self.pending_pause {
+            self.send("M601")?;
+            self.pending_pause = false;
+            self.paused = true;
+            return Ok(());
+        }
+
         loop {
             let Some(line_result) = self.input_lines.next() else { self.running = false; break; };
             let input_line = line_result.context("reading stdin")?;
@@ -68,8 +85,7 @@ impl App {
                 continue;
             }
 
-            eprintln!("{}", trimmed_line);
-            write!(self.printer, "{}\r\n", trimmed_line).context("printer send")?;
+            self.send(trimmed_line)?;
             break;
         }
         Ok(())
@@ -91,12 +107,18 @@ impl App {
         if line.contains("action:cancel") {
             println!("USER CANCELLED");
             self.running = false;
+        } else if line.contains("action:pause") {
+            println!("PAUSED");
+            self.pending_pause = true;
+        } else if line.contains("action:resume") {
+            println!("RESUMED");
+            self.send("M602")?;
         } else if line.starts_with("start") {
             if !self.printer_online {
                 self.printer_online = true;
                 self.send_line()?;
             }
-        } else if line.starts_with("ok") {
+        } else if line.starts_with("ok") && !self.paused {
             self.send_line()?;
         }
         Ok(())
